@@ -28,6 +28,10 @@ enum SubscriptionPlan {
 
 /// Unified IAP manager that handles platform-specific IAP services.
 class IAPManager {
+  /// BikeControl is distributed with every feature unlocked. Keep the legacy
+  /// IAP implementation below as a reversible code path, but never let it
+  /// affect feature availability or start a billing SDK.
+  static const bool monetizationEnabled = false;
   static IAPManager? _instance;
   static IAPManager get instance {
     _instance ??= IAPManager._();
@@ -55,8 +59,8 @@ class IAPManager {
     deviceIdentityService: deviceIdentity,
   );
 
-  ValueNotifier<bool> isPurchased = ValueNotifier<bool>(false);
-  ValueNotifier<bool> isLocalPro = ValueNotifier<bool>(false);
+  ValueNotifier<bool> isPurchased = ValueNotifier<bool>(!monetizationEnabled);
+  ValueNotifier<bool> isLocalPro = ValueNotifier<bool>(!monetizationEnabled);
 
   IAPManager._();
 
@@ -94,13 +98,16 @@ class IAPManager {
   bool get isBetaTester => (isLoggedIn && entitlements.hasActive(betaAccessProductKey) || kDebugMode);
 
   bool get hasActiveSubscription =>
+      !monetizationEnabled ||
       (isLoggedIn && (entitlements.hasActive(premiumMonthlyProductKey)) ||
           entitlements.hasActive(premiumYearlyProductKey)) ||
       (!isLoggedIn && isLocalPro.value);
 
-  bool get isProEnabled => hasActiveSubscription && (isLoggedIn || (!isLoggedIn && isLocalPro.value));
+  bool get isProEnabled =>
+      !monetizationEnabled || (hasActiveSubscription && (isLoggedIn || (!isLoggedIn && isLocalPro.value)));
 
   bool get isProEnabledForCurrentDevice {
+    if (!monetizationEnabled) return true;
     if (!_isInitialized) return false;
     if (_unregisteredDeviceForTesting) return false;
     return hasActiveSubscription &&
@@ -115,6 +122,7 @@ class IAPManager {
   bool get isProButDeviceUnregistered => _isInitialized && isProEnabled && !isProEnabledForCurrentDevice;
 
   bool get isProEnabledForCurrentDeviceOrDidPurchaseOld {
+    if (!monetizationEnabled) return true;
     if (!_isInitialized) return false;
     return isProEnabledForCurrentDevice || hasPurchasedBefore50RVC;
   }
@@ -145,6 +153,13 @@ class IAPManager {
   /// Initialize the IAP manager.
   Future<void> initialize() async {
     if (_isInitialized) return;
+
+    if (!monetizationEnabled) {
+      isPurchased.value = true;
+      isLocalPro.value = true;
+      _isInitialized = true;
+      return;
+    }
 
     final prefs = FlutterSecureStorage(aOptions: AndroidOptions());
     await entitlements.initialize();
@@ -235,6 +250,7 @@ class IAPManager {
 
   /// Check if the trial has expired.
   bool get isTrialExpired {
+    if (!monetizationEnabled) return false;
     // Before IAP is initialized there is no trial to have expired yet, and the
     // pro/subscription checks below reach into Supabase which isn't wired up
     // until startup completes. Mirror isProEnabledForCurrentDevice's guard.
@@ -255,6 +271,7 @@ class IAPManager {
 
   /// Check if the user can execute a command.
   bool get canExecuteCommand {
+    if (!monetizationEnabled) return true;
     if (isProEnabled) return true;
     if (_revenueCatService == null && _windowsIapService == null) return true;
 
@@ -268,6 +285,7 @@ class IAPManager {
 
   /// Get the number of commands remaining today (for free tier after trial).
   int get commandsRemainingToday {
+    if (!monetizationEnabled) return -1;
     if (isProEnabled) {
       return -1;
     }
@@ -281,6 +299,7 @@ class IAPManager {
 
   /// Get the daily command count.
   int get dailyCommandCount {
+    if (!monetizationEnabled) return 0;
     if (_revenueCatService != null) {
       return _revenueCatService!.dailyCommandCount;
     } else if (_windowsIapService != null) {
@@ -291,6 +310,7 @@ class IAPManager {
 
   /// Increment the daily command count.
   Future<void> incrementCommandCount() async {
+    if (!monetizationEnabled) return;
     if (isProEnabled) {
       return;
     }
@@ -303,6 +323,7 @@ class IAPManager {
 
   /// Get a status message for the user.
   String getStatusMessage() {
+    if (!monetizationEnabled) return 'All features unlocked';
     final activeUntil = premiumActiveUntil;
     final expiryInfo = activeUntil != null ? '\nexpires at ${_formatDate(activeUntil)}' : '';
 
@@ -340,6 +361,7 @@ class IAPManager {
 
   /// Purchase the full version.
   Future<void> purchaseFullVersion(BuildContext context, {bool fromPaywall = false}) async {
+    if (!monetizationEnabled) return;
     if (isOutsideStoreWindowsBuild) {
       if (!fromPaywall) {
         return _showPaywall(context, false);
@@ -368,6 +390,7 @@ class IAPManager {
     SubscriptionPlan plan = SubscriptionPlan.monthly,
     bool fromPaywall = false,
   }) async {
+    if (!monetizationEnabled) return;
     if (!fromPaywall) {
       return _showPaywall(context, true);
     } else if (_revenueCatService != null) {
@@ -555,6 +578,7 @@ class IAPManager {
     bool isAllowedForOldPurchases = false,
     String? featureName,
   }) async {
+    if (!monetizationEnabled) return true;
     if (isProEnabledForCurrentDevice || (isAllowedForOldPurchases && hasPurchasedBefore50RVC)) {
       return true;
     } else if (isProEnabled) {

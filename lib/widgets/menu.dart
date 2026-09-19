@@ -8,8 +8,6 @@ import 'package:bike_control/bluetooth/emulation/profiles/all_profiles.dart';
 import 'package:bike_control/pages/markdown.dart';
 import 'package:bike_control/pages/network_troubleshooting_page.dart';
 import 'package:bike_control/pages/onboarding/onboarding_page.dart';
-import 'package:bike_control/pages/paywall.dart';
-import 'package:bike_control/pages/subscription.dart';
 import 'package:bike_control/services/network_self_test/network_self_test_store.dart';
 import 'package:bike_control/services/telemetry_snapshot.dart';
 import 'package:bike_control/services/trainer_self_test/self_test_result.dart';
@@ -19,7 +17,6 @@ import 'package:bike_control/utils/i18n_extension.dart';
 import 'package:bike_control/widgets/feedback_prompt/feedback_prompt_flow.dart';
 import 'package:bike_control/widgets/logviewer.dart';
 import 'package:bike_control/widgets/title.dart';
-import 'package:bike_control/widgets/ui/colors.dart';
 import 'package:dartx/dartx.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show showLicensePage;
@@ -32,80 +29,42 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 import '../utils/iap/iap_manager.dart';
 import 'package:bike_control/services/debug_diagnostics.dart';
-import 'package:bike_control/main.dart' show recordError, screenshotMode;
+import 'package:bike_control/main.dart' show recordError;
 
 List<Widget> buildMenuButtons(BuildContext context) {
-  final iap = IAPManager.instance;
   return [
-    // Pro/Subscription Button.
-    //
-    // Not in [screenshotMode]: the marketing renders lay the app bar out
-    // narrower than a real window, and this button takes enough of the trailing
-    // side that the wordmark wraps mid-word — "BikeContr / ol". Dropping it
-    // gives the title its line back, and a Pro upsell is not what the store
-    // boards are selling anyway.
-    if (!screenshotMode)
-      Builder(
-        builder: (context) {
-          return Button(
-            style: ButtonStyle.primary()
-                .withBackgroundColor(color: iap.isProEnabled && false ? BKColor.mainEnd : null)
-                .withBorderRadius(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-            onPressed: () {
-              openDrawer(
-                context: context,
-                builder: (c) => SubscriptionPage(),
-                position: OverlayPosition.end,
-              );
-            },
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.workspace_premium, size: 14),
-                const SizedBox(width: 4),
-                Text('Pro'),
-              ],
-            ),
-          );
-        },
-      ),
+    Gap(8),
+    Builder(
+      builder: (context) {
+        return IconButton(
+          variance: ButtonVariance.menu,
+          density: ButtonDensity.iconDense,
+          onPressed: () {
+            showDropdown(
+              context: context,
+              builder: (c) => DropdownMenu(
+                children: [
+                  MenuButton(
+                    leading: Icon(Icons.star_rate),
+                    child: Text(context.i18n.leaveAReview),
+                    onPressed: (c) async {
+                      final InAppReview inAppReview = InAppReview.instance;
 
-    if (IAPManager.instance.isPurchased.value || IAPManager.instance.isProEnabled) ...[
-      Gap(8),
-      Builder(
-        builder: (context) {
-          return IconButton(
-            variance: ButtonVariance.menu,
-            density: ButtonDensity.iconDense,
-            onPressed: () {
-              showDropdown(
-                context: context,
-                builder: (c) => DropdownMenu(
-                  children: [
-                    MenuButton(
-                      leading: Icon(Icons.star_rate),
-                      child: Text(context.i18n.leaveAReview),
-                      onPressed: (c) async {
-                        final InAppReview inAppReview = InAppReview.instance;
-
-                        if (await inAppReview.isAvailable()) {
-                          inAppReview.requestReview();
-                        } else {
-                          inAppReview.openStoreListing(appStoreId: 'id6753721284', microsoftStoreId: '9NP42GS03Z26');
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              );
-            },
-            icon: Icon(Icons.favorite_outline),
-          );
-        },
-      ),
-    ],
+                      if (await inAppReview.isAvailable()) {
+                        inAppReview.requestReview();
+                      } else {
+                        inAppReview.openStoreListing(appStoreId: 'id6753721284', microsoftStoreId: '9NP42GS03Z26');
+                      }
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+          icon: Icon(Icons.favorite_outline),
+        );
+      },
+    ),
     Gap(4),
 
     BKMenuButton(),
@@ -374,16 +333,6 @@ class BKMenuButton extends StatelessWidget {
                 child: Text('Disconnect'),
                 onPressed: (c) async {
                   core.connection.disconnectAll();
-                },
-              ),
-              MenuButton(
-                child: Text('Show Paywall'),
-                onPressed: (c) async {
-                  openDrawer(
-                    context: context,
-                    builder: (c) => Paywall(),
-                    position: OverlayPosition.bottom,
-                  );
                 },
               ),
               MenuDivider(),
