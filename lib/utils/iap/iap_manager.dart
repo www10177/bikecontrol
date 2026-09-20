@@ -205,12 +205,14 @@ class IAPManager {
 
   /// Called on app start when a session may already exist.
   Future<void> refreshEntitlementsOnAppStart() async {
+    if (!monetizationEnabled) return;
     await entitlements.refresh(force: true);
     _syncPurchaseFlagFromEntitlements();
   }
 
   /// Called on app resume to refresh stale entitlement cache.
   Future<void> refreshEntitlementsOnResume() async {
+    if (!monetizationEnabled) return;
     await entitlements.refresh();
     _syncPurchaseFlagFromEntitlements();
   }
